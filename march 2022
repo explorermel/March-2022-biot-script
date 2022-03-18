@@ -1,0 +1,43 @@
+library(ggplot2)
+library(MuMIn)
+library(lme4)
+
+
+
+dat <- read.csv("C:/Users/wsms5/OneDrive - Loughborough University/Paper_writing/MS_1/up to date R csv/BIOT_data_noTC_2022_useinmodel.csv", stringsAsFactors = T)
+dat$Effort <- dat$Area * (1-dat$Obscured)
+dat$Island[dat$Island=="Ile Poule "] <- "Ile Poule"
+dat$Island <- droplevels(dat$Island)
+
+table(dat$Invasive)
+table(dat$Atoll)
+table(dat$Camera)
+table(dat$Side)
+with(dat, table(Atoll, Invasive, Side))
+with(dat, table(Side, Invasive))
+with(dat, table(Island, Atoll))
+
+names(dat)
+with(dat, tapply(Teleosts, list(Side, Invasive), function(x) sum(x>0)))
+with(dat, tapply(Turtle, list(Side, Invasive), function(x) sum(x>0)))
+with(dat, tapply(Elasmobranchs, list(Side, Invasive), function(x) sum(x>0)))
+with(dat, tapply(Teleosts, list(Side, Invasive), sum))
+with(dat, tapply(Turtle, list(Side, Invasive), sum))
+with(dat, tapply(Elasmobranchs, list(Side, Invasive), sum))
+
+m1 <- glmer(Elasmobranchs~Invasive*Side + (1|Island) + offset(log(Effort)), data=dat, family=poisson)
+m2 <- glmer(Elasmobranchs~Invasive + Side + (1|Island) + offset(log(Effort)), data=dat, family=poisson)
+m3 <- glmer(Elasmobranchs~Invasive + (1|Island) + offset(log(Effort)), data=dat, family=poisson)
+m4 <- glmer(Elasmobranchs~Side + (1|Island) + offset(log(Effort)), data=dat, family=poisson)
+m5 <- glmer(Elasmobranchs~1 + (1|Island) + offset(log(Effort)), data=dat, family=poisson)
+model.sel(m1,m2,m3,m4,m5)
+
+nd <- data.frame(Invasive=levels(dat$Invasive), Effort=1)
+f <- function(x) predict(x, newdata=nd, type="resp", re.form=NA)
+res <- bootMer(m3, f, 100)
+nres <- data.frame(est=res$t0, se=apply(res$t, 2, sd), t(apply(res$t, 2, quantile, c(0.025,0.975))))
+res <- cbind(nd,nres)
+with(res, est[2]/est[1])
+ggplot(res, aes(x=Invasive, y=est)) + geom_col() + theme_classic() + 
+  geom_errorbar(aes(ymin=est-se, ymax=est+se), width=.1) +
+  labs(y="Elsmobranchs per km2")
